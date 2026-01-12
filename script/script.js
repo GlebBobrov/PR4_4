@@ -1,203 +1,169 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const btnOpenModal = document.querySelector('#btnOpenModal');
-    const modalBlock = document.querySelector('#modalBlock');
-    const closeModal = document.querySelector('#closeModal');
-    const questionTitle = document.querySelector('#question');
-    const formAnswers = document.querySelector('#formAnswers');
-    const burgerBtn = document.getElementById('burger');
-    const nextButton = document.querySelector('#next');
-    const prevButton = document.querySelector('#prev');
-    const sendButton = document.querySelector('#send');
 
-    const questions = [{
-        question: "Какого цвета бургер?",
-        answers: [{
-                title: 'Стандарт',
-                url: './image/burger.png'
-            },
-            {
-                title: 'Тёмный',
-                url: './image/burgerBlack.png'
-            }
-        ],
-        type: 'radio'
-    },
-    {
-        question: "Из какого мяса котлета?",
-        answers: [{
-                title: 'Курица',
-                url: './image/chickenMeat.png'
-            },
-            {
-                title: 'Говядина',
-                url: './image/beefMeat.png'
-            },
-            {
-                title: 'Свинина',
-                url: './image/porkMeat.png'
-            }
-        ],
-        type: 'radio'
-    },
-    {
-        question: "Дополнительные ингредиенты?",
-        answers: [{
-                title: 'Помидор',
-                url: './image/tomato.png'
-            },
-            {
-                title: 'Огурец',
-                url: './image/cucumber.png'
-            },
-            {
-                title: 'Салат',
-                url: './image/salad.png'
-            },
-            {
-                title: 'Лук',
-                url: './image/onion.png'
-            }
-        ],
-        type: 'checkbox'
-    },
-    {
-        question: "Добавить соус?",
-        answers: [{
-                title: 'Чесночный',
-                url: './image/sauce1.png'
-            },
-            {
-                title: 'Томатный',
-                url: './image/sauce2.png'
-            },
-            {
-                title: 'Горчичный',
-                url: './image/sauce3.png'
-            }
-        ],
-        type: 'radio'
+  const btnOpenModal = document.querySelector('#btnOpenModal');
+  const modalBlock = document.querySelector('#modalBlock');
+  const closeModal = document.querySelector('#closeModal');
+  const questionTitle = document.querySelector('#question');
+  const formAnswers = document.querySelector('#formAnswers');
+  const btnPrev = document.querySelector('#prev');
+  const btnNext = document.querySelector('#next');
+  const btnSend = document.querySelector('#send');
+
+  const firebaseUrl = 'https://burgproject-default-rtdb.europe-west1.firebasedatabase.app/';
+
+  let questions = [];
+  let currentQuestionIndex = 0;
+  let userAnswers = {};
+
+  btnOpenModal.addEventListener('click', () => {
+    modalBlock.classList.add('d-block');
+    loadQuestionsFromFirebase();
+  });
+
+  closeModal.addEventListener('click', () => {
+    modalBlock.classList.remove('d-block');
+  });
+
+  btnPrev.addEventListener('click', () => {
+    if (currentQuestionIndex > 0) {
+      saveCurrentAnswer();
+      currentQuestionIndex--;
+      playTest();
     }
-];
+  });
 
-    btnOpenModal.addEventListener('click', () => {
-        modalBlock.classList.add('d-block');
+  btnNext.addEventListener('click', () => {
+    saveCurrentAnswer();
+    if (currentQuestionIndex < questions.length - 1) {
+      currentQuestionIndex++;
+      playTest();
+    }
+  });
+
+  btnSend.addEventListener('click', () => {
+    saveCurrentAnswer();
+    console.log('Ответы пользователя:', userAnswers);
+
+    alert('Тест завершен! Результаты сохранены.');
+    modalBlock.classList.remove('d-block');
+  });
+
+  const loadQuestionsFromFirebase = async () => {
+    try {
+      questionTitle.textContent = 'Завантаження...';
+      formAnswers.innerHTML = '';
+
+      const response = await fetch(`${firebaseUrl}questions.json`);
+      const data = await response.json();
+
+
+      if (data && Array.isArray(data)) {
+        questions = data;
+      } else if (data && data.questions && Array.isArray(data.questions)) {
+        questions = data.questions;
+      } else if (data) {
+
+        questions = Object.values(data);
+      }
+
+      if (questions.length > 0) {
+        currentQuestionIndex = 0;
+        userAnswers = {};
         playTest();
-    });
+      } else {
+        questionTitle.textContent = 'Питання не знайдено';
+        formAnswers.innerHTML = '<p>У базі даних немає питань</p>';
+      }
+    } catch (error) {
+      console.error('Помилка завантаження з Firebase:', error);
+      questionTitle.textContent = 'Помилка завантаження питань';
+      formAnswers.innerHTML = '<p>Не вдалося завантажити питання з бази даних</p>';
+    }
+  };
 
+  const saveCurrentAnswer = () => {
+    if (questions.length === 0 || currentQuestionIndex >= questions.length) return;
+
+    const currentQuestion = questions[currentQuestionIndex];
+    const inputs = formAnswers.querySelectorAll(`input[name="answer${currentQuestionIndex}"]`);
+    const checkedInputs = Array.from(inputs).filter(input => input.checked);
     
-    closeModal.addEventListener('click', () => {
-        modalBlock.classList.remove('d-block');
+    if (checkedInputs.length > 0) {
+      if (currentQuestion.type === 'checkbox') {
+        userAnswers[currentQuestionIndex] = checkedInputs.map(input => input.value);
+      } else {
+        userAnswers[currentQuestionIndex] = checkedInputs[0].value;
+      }
+    }
+  };
+
+  const playTest = () => {
+    if (questions.length === 0 || currentQuestionIndex >= questions.length) {
+      return;
+    }
+
+    const currentQuestion = questions[currentQuestionIndex];
+    renderQuestion(currentQuestion);
+    updateNavigationButtons();
+  };
+
+  const updateNavigationButtons = () => {
+    // Управление видимостью кнопок
+    if (currentQuestionIndex === 0) {
+      btnPrev.style.display = 'none';
+    } else {
+      btnPrev.style.display = 'inline-block';
+    }
+
+    if (currentQuestionIndex === questions.length - 1) {
+      btnNext.style.display = 'none';
+      btnSend.classList.remove('d-none');
+    } else {
+      btnNext.style.display = 'inline-block';
+      btnSend.classList.add('d-none');
+    }
+  };
+
+  const renderQuestion = (question) => {
+    questionTitle.textContent = question.question || '';
+
+    const savedAnswer = userAnswers[currentQuestionIndex];
+    const inputsHtml = question.answers.map((answer, index) => {
+      const inputType = question.type || 'radio';
+      const inputId = `answerItem${currentQuestionIndex}_${index}`;
+      const isChecked = savedAnswer && (
+        (Array.isArray(savedAnswer) && savedAnswer.includes(answer.title)) ||
+        savedAnswer === answer.title
+      );
+      
+      return `
+        <div class="answers-item d-flex flex-column">
+          <input type="${inputType}" id="${inputId}" name="answer${currentQuestionIndex}" class="d-none" value="${answer.title}" ${isChecked ? 'checked' : ''}>
+          <label for="${inputId}" class="d-flex flex-column justify-content-between">
+            <img class="answerImg" src="${answer.url}" alt="${answer.title}">
+            <span>${answer.title}</span>
+          </label>
+        </div>
+      `;
+    }).join('');
+
+    formAnswers.innerHTML = inputsHtml;
+
+    // Добавляем обработчики для визуальной обратной связи при клике
+    const labels = formAnswers.querySelectorAll('label');
+    labels.forEach(label => {
+      label.addEventListener('click', function() {
+        const input = formAnswers.querySelector(`#${label.getAttribute('for')}`);
+        if (input.type === 'radio') {
+          // Снимаем выделение с других радиокнопок
+          labels.forEach(l => {
+            if (l !== label) {
+              l.classList.remove('active');
+            }
+          });
+        }
+        label.classList.toggle('active');
+      });
     });
-
-    const playTest = () => {
-        
-        const finalAnswers = [];
-        let numberQuestion = 0;
-
-        const renderAnswers = (index) => {          
-            questions[index].answers.forEach((answer) => {
-                const answerItem = document.createElement('div');
-                
-                answerItem.classList.add('answers-item', 'd-flex', 'justify-content-center');
-
-                answerItem.innerHTML = `
-                <input type="${questions[index].type}" id="${answer.title}" name="answer" class="d-none" value="${answer.title}">
-                <label for="${answer.title}" class="d-flex flex-column justify-content-between">
-                <img class="answerImg" src="${ answer.url }" alt="burger">
-                <span>${ answer.title }</span>
-                </label>
-                `;
-
-                formAnswers.appendChild(answerItem);
-            })
-        }
-
-    const renderQuestions = (indexQuestion) => {
-        formAnswers.innerHTML = '';
-
-        switch (true) {
-            case (numberQuestion >= 0 && numberQuestion < questions.length):
-                questionTitle.textContent = questions[indexQuestion].question;
-                renderAnswers(indexQuestion);
-
-                nextButton.classList.remove('d-none');
-                prevButton.classList.remove('d-none');
-                sendButton.classList.add('d-none');
-
-                if (numberQuestion === 0) {
-                    prevButton.classList.add('d-none');
-                }
-                break;
-
-            case (numberQuestion === questions.length):
-                questionTitle.textContent = "Введите ваш номер телефона";
-
-                nextButton.classList.add('d-none');
-                prevButton.classList.add('d-none');
-                sendButton.classList.remove('d-none');
-
-                formAnswers.innerHTML = `
-                    <div class="form-group">
-                        <label for="numberPhone">Enter your number</label>
-                        <input type="phone" class="form-control" id="numberPhone">
-                    </div>
-                `;
-                break;
-
-            case (numberQuestion === questions.length + 1):
-                questionTitle.textContent = "";
-                formAnswers.textContent = 'Дякую за проходження тесту!';
-
-                setTimeout(() => {
-                    modalBlock.classList.remove('d-block');
-                }, 2000);
-                break;
-
-            default:
-                console.warn("Некорректный номер вопроса:", numberQuestion);
-        }
-    };
-
-        renderQuestions(numberQuestion);
-
-        const checkAnswer = () => {
-            const obj = {};
-            const inputs = [...formAnswers.elements].filter((input) => input.checked || input.id === 'numberPhone')
-            console.log(inputs);
-
-            inputs.forEach((input, index) => {    
-                if(numberQuestion >= 0 && numberQuestion <= questions.length - 1){
-                    obj[`${index}_${questions[numberQuestion].question}`] = input.value
-                }
-
-                if(numberQuestion === questions.length){
-                    obj[`Номер телефона`] = input.value
-                }
-            })
-
-            finalAnswers.push(obj)
-            console.log(finalAnswers);
-            
-        }
-
-        nextButton.onclick = () => {
-            checkAnswer();
-            numberQuestion++;
-            renderQuestions(numberQuestion);
-        }
-
-        prevButton.onclick = () => {
-            numberQuestion--;
-            renderQuestions(numberQuestion);
-        }
-
-        sendButton.onclick = () => {
-            checkAnswer();
-            numberQuestion++;
-            renderQuestions(numberQuestion);
-            console.log(finalAnswers);
-        }
-    };
+  };
 });
-
-
